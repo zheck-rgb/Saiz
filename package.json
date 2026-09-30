@@ -1,7 +1,7 @@
 {
   "name": "lgc-autoreply-bot",
   "version": "1.0.0",
-  "description": "LGC Auto-Reply Bot with Built-in Dashboard and Multi-GC Control",
+  "description": "LGC Auto-Reply Bot with Reply Pool and Suffix Dashboard Control",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
