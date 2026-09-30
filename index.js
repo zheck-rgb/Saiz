@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'bot_data.json');
 
 // ============================================================
-// 💾 DATA STORAGE — LAHAT NAKASAVE
+// 💾 DATA STORAGE
 // ============================================================
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) {
@@ -22,11 +22,10 @@ function loadData() {
         "hindi ako aalis hanggat di ka sumasagot", "andito lang ako hinihintay ka"
       ],
       trollReplies: [
-        "akala ko kung sino natakot lang pala", "buti naman sumagot ka",
-        "hindi ka makakatakas sakin", "wag ka na magtago ha",
-        "andito lang ako naghihintay sayo"
+        "buti naman sumagot ka", "hindi ka makakatakas sakin",
+        "talo ka na sumuko ka na lang", "akin ka lang"
       ],
-      suffixes: ["", " noh", " ha", " naman", " 💀", " 🤭", " 🩸"],
+      suffixes: ["🩸", "💀", "😏", "🔥", "😈", "🤌", "🤭", "💅", "😂", "🤡", "🧐", "😒", "🙄", "😎", "🥴", "🫵", "💢", "👁️", "🗡️", "⚔️", "🔪", "☠️", "💣", "🖤", "🕷️", "🕸️", "🦅", "🐍", "👑", "💎", "⚡", "🌑", "🌙"],
       delayMin: 4000,
       delayMax: 8000,
       countStartNum: "1",
@@ -39,12 +38,7 @@ function loadData() {
         "Duwag pala nagtatago pa, lumabas ka dyan!",
         "Hindi ka makakatakas, hawak kita dito!",
         "Sa dulo tayo pa rin, wag ka nang lumaban!",
-        "Wala kang laban sakin, tanggapin mo na!",
-        "Akala ko kung sino, duwag lang pala!",
-        "Hindi ka makakaalis dito, akin ka lang!",
-        "Wag ka nang magtago, nakikita kita!",
-        "Akin ka lang, walang makakakuha sayo!",
-        "Talo ka na, sumuko ka na lang!"
+        "Wala kang laban sakin, tanggapin mo na!"
       ]
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2));
@@ -67,7 +61,23 @@ let activeThreads = new Set();
 let isSending = false;
 let isCounting = {};
 let startTime = Date.now();
-let botStatus = { online: false, lastError: "" };
+
+// ============================================================
+// 📊 STATUS TRACKER — MAKIKITA LAHAT NG NANGYAYARI
+// ============================================================
+let botStatus = {
+  online: false,
+  phase: "Naghihintay ng setup...",
+  lastError: "",
+  attempts: 0,
+  lastUpdate: new Date().toLocaleTimeString()
+};
+
+function updatePhase(text) {
+  botStatus.phase = text;
+  botStatus.lastUpdate = new Date().toLocaleTimeString();
+  console.log(chalk.cyan(`📌 [${botStatus.lastUpdate}] ${text}`));
+}
 
 // ============================================================
 // 🔧 HELPERS
@@ -78,23 +88,23 @@ function randomDelay() {
 }
 function getUptime() {
   const s = Math.floor((Date.now() - startTime) / 1000);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return `${d}d ${h}h ${m}m`;
+  if (s < 60) return `${s} segundo`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} minuto`;
+  return `${Math.floor(m / 60)} oras ${m % 60} minuto`;
 }
 function isFatalErr(err) {
   if (!err) return false;
   const m = String(err).toLowerCase();
-  return m.includes("checkpoint") || m.includes("confirm") || m.includes("blocked") || m.includes("verify");
+  return m.includes("checkpoint") || m.includes("confirm") || m.includes("blocked") || m.includes("verify") || m.includes("login approval");
 }
 function getTime() {
   return new Date().toLocaleString('ph-PH', { timeZone: 'Asia/Manila' });
 }
 function formatDuration(ms) {
   const sec = Math.floor(ms / 1000);
-  if (sec < 60) return `${sec}s`;
-  return `${Math.floor(sec / 60)}mins`;
+  if (sec < 60) return `${sec} segundo`;
+  return `${Math.floor(sec / 60)} minuto`;
 }
 
 // ============================================================
@@ -116,7 +126,7 @@ function sendOneMessage(text, threadID) {
 // ============================================================
 async function lockTargetFn(threadID, targetID) {
   lockedTarget = { threadID, targetID, waiting: false };
-  const msg = rand(botData.hamolReplies) + rand(botData.suffixes);
+  const msg = rand(botData.hamolReplies) + " " + rand(botData.suffixes);
   await sendOneMessage(msg, threadID);
   console.log(chalk.red.bold(`🔒 LOCKED → ${targetID}`));
   waitThenNext();
@@ -125,11 +135,10 @@ async function lockTargetFn(threadID, targetID) {
 async function waitThenNext() {
   if (!lockedTarget || lockedTarget.waiting) return;
   lockedTarget.waiting = true;
-
   setTimeout(async () => {
     if (!lockedTarget) return;
     lockedTarget.waiting = false;
-    const msg = rand(botData.hamolReplies) + rand(botData.suffixes);
+    const msg = rand(botData.hamolReplies) + " " + rand(botData.suffixes);
     await sendOneMessage(msg, lockedTarget.threadID);
     waitThenNext();
   }, randomDelay());
@@ -137,7 +146,7 @@ async function waitThenNext() {
 
 async function onTargetMsg(msgBody, threadID) {
   if (!lockedTarget) return;
-  const reply = rand(botData.trollReplies) + rand(botData.suffixes);
+  const reply = rand(botData.trollReplies) + " " + rand(botData.suffixes);
   await sendOneMessage(reply, threadID);
   setTimeout(() => { if (lockedTarget) waitThenNext(); }, randomDelay());
 }
@@ -157,13 +166,12 @@ async function startCounting(threadID) {
     api.sendMessage("⚠️ NAGBIBILANG PA — HINTAYIN TAPOS!", threadID);
     return;
   }
-
   isCounting[threadID] = true;
   stopLockFn(threadID);
   activeThreads.delete(threadID);
 
   const countStart = Date.now();
-  console.log(chalk.cyan(`🔢 BILANG ${botData.countFrom}-${botData.countTo} — GC: ${threadID}`));
+  console.log(chalk.cyan(`🔢 BILANG ${botData.countFrom}-${botData.countTo} NAGSIMULA`));
 
   for (let i = botData.countFrom; i <= botData.countTo; i++) {
     if (!isCounting[threadID]) {
@@ -172,13 +180,10 @@ async function startCounting(threadID) {
     }
     await new Promise(res => setTimeout(res, botData.countDelay));
     await new Promise(res => api.sendMessage(String(i), threadID, () => res()));
-    process.stdout.write(`\r🔢 ${i}/${botData.countTo}`);
   }
 
   if (isCounting[threadID]) {
     const duration = formatDuration(Date.now() - countStart);
-    const randomReason = rand(botData.reasonList);
-
     const resibo = `
 ═══════════════════════
    ✅ RESIBO [${botData.receiptTitle}]
@@ -186,76 +191,101 @@ async function startCounting(threadID) {
    MULA: ${botData.countFrom}
    HANGGANG: ${botData.countTo}
    BILANG: ${duration}
-   REASON: ${randomReason}
+   REASON: ${rand(botData.reasonList)}
    ORAS: ${getTime()}
 ═══════════════════════
-✅ RESIBO — BILANG TAPOS NA!
-💀 SAIZEN COUNT SYSTEM
+✅ RESIBO — TAPOS NA!
+💀 SAIZEN BOT
 `.trim();
-
     await new Promise(res => setTimeout(res, 800));
     await new Promise(res => api.sendMessage(resibo, threadID, () => res()));
-    console.log(chalk.green(`\n✅ RESIBO NAIPASA — ${getTime()}`));
+    console.log(chalk.green(`✅ RESIBO NAIPASA`));
   }
-
   isCounting[threadID] = false;
 }
 
 // ============================================================
-// 🚀 MABILIS NA LOGIN ⚡
+// 🚀 LOGIN — DETALYADONG UPDATE ⚡
 // ============================================================
 function connectBot() {
   if (!botData.session || !botData.adminId) {
-    botStatus.lastError = "Missing Session or Admin ID";
+    updatePhase("⚠️ Kulang — Ilagay Admin ID + Session sa Dashboard");
     return;
   }
-  if (isLoggingIn) return;
+  if (isLoggingIn) {
+    updatePhase("⏰ Kasalukuyang nagkokonekta... Hintayin mo");
+    return;
+  }
+
+  reconnectCount++;
+  botStatus.attempts = reconnectCount;
+  updatePhase(`🔌 Pagsubok #${reconnectCount} — Nagkonekta...`);
   isLoggingIn = true;
 
   const agents = [
-    "Mozilla/5.0 (Linux; Android 14; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 14; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
   ];
+
+  updatePhase("📤 Pagpapadala ng credentials...");
 
   login({
     appState: JSON.parse(botData.session),
     userAgent: rand(agents),
     forceLogin: false,
     logLevel: "silent",
-    timeout: 15000
+    timeout: 20000
   }, async (err, apiObj) => {
     if (err) {
-      reconnectCount++;
-      botStatus.lastError = String(err).slice(0, 60);
-      console.log(chalk.red(`🔴 Login failed — Subok ulit...`));
-
+      botStatus.lastError = String(err).slice(0, 80);
+      
       if (isFatalErr(err)) {
+        updatePhase(`⛔ Kailangan ng kumpirmasyon — Maghintay 10s bago subok ulit`);
+        console.log(chalk.red(`❌ Fatal Error: ${botStatus.lastError}`));
         isLoggingIn = false;
-        setTimeout(connectBot, 15000);
+        setTimeout(connectBot, 10000);
         return;
       }
+
+      updatePhase(`❌ Nabigo — Subok ulit sa 3 segundo...`);
+      console.log(chalk.red(`❌ Nabigo: ${botStatus.lastError}`));
       isLoggingIn = false;
       setTimeout(connectBot, 3000);
       return;
     }
 
+    updatePhase("✅ Konektado — Kinukuha ang impormasyon...");
     api = apiObj;
-    userID = await api.getCurrentUserID();
+    
+    try {
+      userID = await api.getCurrentUserID();
+    } catch (e) {
+      updatePhase("⚠️ Hindi makuha ang User ID — Subok ulit...");
+      isLoggingIn = false;
+      setTimeout(connectBot, 3000);
+      return;
+    }
+
     reconnectCount = 0;
     isLoggingIn = false;
     botStatus.online = true;
     botStatus.lastError = "";
     startTime = Date.now();
-    console.log(chalk.green(`✅ ONLINE — MABILIS NA! ID: ${userID} 🩸`));
+    updatePhase(`🟢 ONLINE — Nakakonekta bilang ID: ${userID}`);
+    console.log(chalk.green.bold(`\n✅✅✅ ONLINE NA! ID: ${userID} ✅✅✅\n`));
 
     api.setOptions({
       listenEvents: true, selfListen: false, online: true,
       autoMarkRead: false, autoMarkDelivery: false
     });
 
+    updatePhase("👂 Nakikinig na sa mga mensahe...");
+
     api.listenMqtt((listenErr, event) => {
       if (listenErr) {
         botStatus.online = false;
-        console.log(chalk.red("🔴 Reconnecting..."));
+        updatePhase("🔴 Naputol ang koneksyon — Muling kumokonekta...");
         setTimeout(connectBot, 3000);
         return;
       }
@@ -266,7 +296,7 @@ function connectBot() {
       const msg = event.body ? event.body.trim() : "";
       const mid = event.messageID;
 
-      // 🔢 BILANG — I-TYPE: 1
+      // 🔢 BILANG
       if (msg === botData.countStartNum && sid === botData.adminId) {
         api.setMessageReaction("🔢", mid, () => {}, true);
         startCounting(tid);
@@ -290,15 +320,15 @@ function connectBot() {
         stopLockFn(tid);
         lockTargetFn(tid, targetID);
         api.setMessageReaction("🩸", mid, () => {}, true);
-        api.sendMessage(`🔒 LOCKED — NO SPAM ✅\n📍 Target: ${targetID}`, tid);
+        api.sendMessage(`🔒 LOCKED ✅\n📍 Target: ${targetID}`, tid);
         return;
       }
 
-      // 🛑 STOP LAHAT
+      // 🛑 STOP
       if (msg === ".stop" && sid === botData.adminId) {
         stopLockFn(tid);
         api.setMessageReaction("🩸", mid, () => {}, true);
-        api.sendMessage("🛑 TIGIL — LAHAT TUMIGIL 🩸", tid);
+        api.sendMessage("🛑 TIGIL 🩸", tid);
         return;
       }
 
@@ -308,7 +338,7 @@ function connectBot() {
         return;
       }
       if (!lockedTarget && activeThreads.has(tid) && sid !== botData.adminId && !isSending) {
-        const reply = rand(botData.trollReplies) + rand(botData.suffixes);
+        const reply = rand(botData.trollReplies) + " " + rand(botData.suffixes);
         sendOneMessage(reply, tid);
       }
     });
@@ -316,7 +346,7 @@ function connectBot() {
 }
 
 // ============================================================
-// 🖥️ DASHBOARD
+// 🖥️ DASHBOARD — MAKIKITA LAHAT NG UPDATE ⚡
 // ============================================================
 const app = express();
 app.use(cors());
@@ -325,6 +355,9 @@ app.use(express.json());
 app.get('/api/status', (req, res) => {
   res.json({
     online: botStatus.online,
+    phase: botStatus.phase,
+    lastUpdate: botStatus.lastUpdate,
+    attempts: botStatus.attempts,
     uptime: botStatus.online ? getUptime() : null,
     adminId: botData.adminId,
     hasSession: !!botData.session,
@@ -353,7 +386,7 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   const d = req.body;
-  if (d.adminId !== undefined) botData.adminId = d.adminId;
+  if (d.adminId) botData.adminId = d.adminId;
   if (d.hamolReplies) botData.hamolReplies = d.hamolReplies;
   if (d.trollReplies) botData.trollReplies = d.trollReplies;
   if (d.suffixes) botData.suffixes = d.suffixes;
@@ -374,10 +407,10 @@ app.post('/api/session', (req, res) => {
     JSON.parse(req.body.session);
     botData.session = req.body.session;
     saveData(botData);
-    res.json({ success: true, message: "✅ Session Saved — Connecting..." });
-    setTimeout(connectBot, 2000);
+    res.json({ success: true, message: "✅ Session Saved — Sinimulan ang pagkonekta..." });
+    setTimeout(connectBot, 1000);
   } catch {
-    res.status(400).json({ success: false, message: "❌ Invalid JSON" });
+    res.status(400).json({ success: false, message: "❌ Mali ang format — Kopyahin nang BUO mula { hanggang }" });
   }
 });
 
@@ -385,7 +418,8 @@ app.post('/api/restart', (req, res) => {
   lockedTarget = null;
   isCounting = {};
   activeThreads.clear();
-  setTimeout(connectBot, 1500);
+  botStatus.phase = "🔄 Muling sinimulan...";
+  setTimeout(connectBot, 1000);
   res.json({ success: true, message: "🔄 Restarting..." });
 });
 
@@ -394,16 +428,19 @@ app.get('/', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>SAIZEN BOT — KUMPLETO ✅</title>
+  <title>SAIZEN BOT — LIVE STATUS 📡</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
     body{background:#0a0a0a;color:#fff;padding:20px;max-width:900px;margin:0 auto}
     h1{color:#22c55e}
-    .stat{background:#121212;padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #22c55e}
-    .on{color:#22c55e;font-weight:bold}
-    .off{color:#ef4444;font-weight:bold}
+    .status-card{background:#121212;padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #22c55e}
+    .phase{font-size:16px;font-weight:bold;margin:5px 0}
+    .time{color:#888;font-size:12px}
+    .on{color:#22c55e}
+    .off{color:#ef4444}
+    .warn{color:#facc15}
     .card{background:#121212;padding:20px;border-radius:12px;margin:15px 0;border:1px solid #222}
     input,textarea{width:100%;background:#1e1e1e;border:1px solid #333;padding:12px;border-radius:8px;color:#fff;margin:5px 0}
     button{background:#22c55e;border:none;padding:12px 20px;border-radius:8px;color:#fff;font-weight:bold;cursor:pointer;margin:5px 5px 5px 0}
@@ -412,25 +449,30 @@ app.get('/', (req, res) => {
     .cmd{background:#1e1e1e;padding:10px;border-radius:6px;font-family:monospace;color:#facc15;margin:5px 0}
     label{display:block;margin:12px 0 4px;font-weight:600;color:#ddd}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .resibo-preview{background:#1a1a2e;padding:15px;border-radius:8px;font-family:monospace;white-space:pre-line;color:#ffd700;margin:10px 0}
+    .error{background:#2a1515;padding:10px;border-radius:6px;color:#fca5a5;margin-top:8px;font-size:13px}
   </style>
 </head>
 <body>
-  <h1>✅ SAIZEN BOT — KUMPLETO NA!</h1>
-  <p style="color:#888;margin:10px 0 20px">All features working — Mabilis na Login + Resibo + Lock + Auto-Reply</p>
+  <h1>✅ SAIZEN BOT — LIVE STATUS 📡</h1>
+  <p style="color:#888;margin:10px 0 20px">Nakikita mo ang lahat ng nangyayari sa real-time</p>
 
-  <div class="stat">
-    <strong>STATUS: </strong><span id="status">Checking...</span>
-    <div style="margin-top:8px;font-size:13px;color:#888">
+  <!-- LIVE STATUS -->
+  <div class="status-card">
+    <div><strong>STATUS:</strong> <span id="statusText">Checking...</span></div>
+    <div class="phase" id="phaseText">—</div>
+    <div class="time">Huling update: <span id="lastUpdate">—</span> | Subok: <span id="attempts">0</span></div>
+    <div style="margin-top:5px;font-size:13px;color:#888">
       Uptime: <span id="uptime">-</span> | Locked: <span id="locked">-</span>
     </div>
+    <div id="errorBox" class="error" style="display:none"></div>
   </div>
 
   <div class="card">
-    <h3>🔑 C3C Session</h3>
-    <textarea id="sessionInput" rows="5" placeholder='Paste AppState JSON here'></textarea>
+    <h3>🔑 C3C Session JSON</h3>
+    <p style="color:#facc15;font-size:13px;margin:5px 0">⚠️ Kopyahin nang BUO — mula { hanggang }</p>
+    <textarea id="sessionInput" rows="6" placeholder='{"appState":[...]}'></textarea>
     <button onclick="saveSession()">💾 SAVE SESSION</button>
-    <div id="sessionMsg" style="margin-top:10px;color:#22c55e"></div>
+    <div id="sessionMsg" style="margin-top:10px"></div>
   </div>
 
   <div class="card">
@@ -440,118 +482,67 @@ app.get('/', (req, res) => {
   </div>
 
   <div class="card">
-    <h3>🔢 RESIBO SETTINGS</h3>
-    <div class="resibo-preview">
-═══════════════════════
-   ✅ RESIBO [<span id="pTitle">SAIZEN OWNS YOU</span>]
-═══════════════════════
-   MULA: <span id="pFrom">1</span>
-   HANGGANG: <span id="pTo">50</span>
-   BILANG: <span id="pDur">3s/bilang</span>
-   REASON: <span id="pReason">...</span>
-═══════════════════════
-✅ RESIBO — TAPOS NA!
-💀 SAIZEN COUNT SYSTEM
-    </div>
-    <label>Trigger Command</label>
-    <input id="countStartNum" value="1">
-    <label>Resibo Title</label>
-    <input id="receiptTitle" value="SAIZEN OWNS YOU">
-    <div class="grid">
-      <div><label>Mula sa</label><input type="number" id="countFrom" value="1"></div>
-      <div><label>Hanggang sa</label><input type="number" id="countTo" value="50"></div>
-    </div>
-    <label>Delay bawat bilang (ms)</label>
-    <input type="number" id="countDelay" value="3000">
-    <label>Random Reasons</label>
-    <textarea id="reasonList" rows="5">Akala mo makakatakas ka sakin? Wala kang takas!
-Duwag pala nagtatago pa, lumabas ka dyan!
-Hindi ka makakatakas, hawak kita dito!
-Sa dulo tayo pa rin, wag ka nang lumaban!
-Wala kang laban sakin, tanggapin mo na!</textarea>
-    <button onclick="saveCount()">💾 SAVE RESIBO</button>
-  </div>
-
-  <div class="card">
-    <h3>💀 TROLL REPLIES</h3>
-    <label>Hamol Messages</label>
-    <textarea id="hamolInput" rows="4"></textarea>
-    <label>Reply Messages</label>
-    <textarea id="trollInput" rows="4"></textarea>
-    <label>Suffixes</label>
-    <textarea id="suffixInput" rows="3"></textarea>
-    <div class="grid">
-      <div><label>Min Delay (ms)</label><input type="number" id="dMin"></div>
-      <div><label>Max Delay (ms)</label><input type="number" id="dMax"></div>
-    </div>
-    <button onclick="saveTroll()">💾 SAVE TROLL</button>
-  </div>
-
-  <div class="card">
     <h3>📝 COMMANDS SA GC</h3>
-    <div class="cmd">1</div><p>→ 🔢 Bilang 1-50 + Resibo</p>
-    <div class="cmd">.</div><p>→ ✅ Auto-Reply ON</p>
-    <div class="cmd">.. @ID</div><p>→ 🔒 LOCK Target</p>
-    <div class="cmd">.stop</div><p>→ 🛑 Tigil Lahat</p>
+    <div class="cmd">1</div><p>→ Bilang 1-50 + Resibo</p>
+    <div class="cmd">.</div><p>→ Auto-Reply ON</p>
+    <div class="cmd">.. @ID</div><p>→ Lock Target</p>
+    <div class="cmd">.stop</div><p>→ Tigil Lahat</p>
     <button class="sec" onclick="restart()">🔄 RESTART BOT</button>
   </div>
 
 <script>
 async function load(){
-  const [s,se] = await Promise.all([fetch('/api/status'),fetch('/api/settings')]);
-  const st=await s.json(),se=await se.json();
-  document.getElementById('status').innerHTML=st.online?'<span class="on">✅ ONLINE</span>':'<span class="off">❌ OFFLINE</span>';
-  document.getElementById('uptime').textContent=st.uptime||'-';
-  document.getElementById('locked').textContent=st.lockedTarget||'-';
+  const res = await fetch('/api/status');
+  const s = await res.json();
   
-  document.getElementById('adminInput').value=se.adminId||'';
-  document.getElementById('countStartNum').value=se.countStartNum;
-  document.getElementById('receiptTitle').value=se.receiptTitle;
-  document.getElementById('countFrom').value=se.countFrom;
-  document.getElementById('countTo').value=se.countTo;
-  document.getElementById('countDelay').value=se.countDelay;
-  document.getElementById('reasonList').value=se.reasonList.join('\\n');
-  document.getElementById('hamolInput').value=se.hamolReplies.join('\\n');
-  document.getElementById('trollInput').value=se.trollReplies.join('\\n');
-  document.getElementById('suffixInput').value=se.suffixes.join('\\n');
-  document.getElementById('dMin').value=se.delayMin;
-  document.getElementById('dMax').value=se.delayMax;
+  // Status
+  document.getElementById('statusText').innerHTML = 
+    s.online ? '<span class="on">🟢 ONLINE</span>' : 
+    (s.phase.includes("Kailangan") || s.phase.includes("Ilagay") ? 
+     '<span class="warn">🟡 Nakaantay</span>' : 
+     '<span class="off">🔴 Offline</span>');
   
-  document.getElementById('pTitle').textContent=se.receiptTitle;
-  document.getElementById('pFrom').textContent=se.countFrom;
-  document.getElementById('pTo').textContent=se.countTo;
-  const rList=se.reasonList;
-  document.getElementById('pReason').textContent=rList[Math.floor(Math.random()*rList.length)];
+  // Phase message
+  document.getElementById('phaseText').textContent = s.phase;
+  document.getElementById('lastUpdate').textContent = s.lastUpdate;
+  document.getElementById('attempts').textContent = s.attempts;
+  document.getElementById('uptime').textContent = s.uptime || '-';
+  document.getElementById('locked').textContent = s.lockedTarget || '-';
+  
+  // Error display
+  const errorBox = document.getElementById('errorBox');
+  if(s.lastError){
+    errorBox.style.display = 'block';
+    errorBox.textContent = '❌ ' + s.lastError;
+  } else {
+    errorBox.style.display = 'none';
+  }
 }
+
 async function saveSession(){
-  const r=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:document.getElementById('sessionInput').value})});
-  const d=await r.json();document.getElementById('sessionMsg').textContent=d.message;
+  const r = await fetch('/api/session',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({session:document.getElementById('sessionInput').value})
+  });
+  const d = await r.json();
+  document.getElementById('sessionMsg').textContent = d.message;
 }
+
 async function saveAdmin(){
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminId:document.getElementById('adminInput').value})});load();
+  await fetch('/api/settings',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({adminId:document.getElementById('adminInput').value})
+  });
 }
-async function saveCount(){
-  const r=document.getElementById('reasonList').value.split('\\n').filter(x=>x.trim());
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    countStartNum:document.getElementById('countStartNum').value.trim(),
-    receiptTitle:document.getElementById('receiptTitle').value.trim(),
-    countFrom:parseInt(document.getElementById('countFrom').value),
-    countTo:parseInt(document.getElementById('countTo').value),
-    countDelay:parseInt(document.getElementById('countDelay').value),
-    reasonList:r
-  })});load();alert('✅ Saved!');
+
+async function restart(){
+  await fetch('/api/restart',{method:'POST'});
 }
-async function saveTroll(){
-  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    hamolReplies:document.getElementById('hamolInput').value.split('\\n').filter(x=>x),
-    trollReplies:document.getElementById('trollInput').value.split('\\n').filter(x=>x),
-    suffixes:document.getElementById('suffixInput').value.split('\\n'),
-    delayMin:parseInt(document.getElementById('dMin').value),
-    delayMax:parseInt(document.getElementById('dMax').value)
-  })});load();
-}
-async function restart(){await fetch('/api/restart',{method:'POST'});setTimeout(load,2000);}
-load();setInterval(load,2000);
+
+load();
+setInterval(load, 1000); // ⚡ 1 SECOND — LIVE UPDATE
 </script>
 </body>
 </html>
@@ -559,11 +550,13 @@ load();setInterval(load,2000);
 });
 
 // ============================================================
-// ▶️ START
+// ▶️ SIMULA
 // ============================================================
 app.listen(PORT, () => {
-  console.log(chalk.green(`\n🚀 SAIZEN BOT — KUMPLETO NA!`));
-  console.log(chalk.cyan(`Dashboard: Port ${PORT}\n`));
-  if (botData.session && botData.adminId) connectBot();
-  else console.log(chalk.yellow(`⚠️ Ilagay Admin ID + Session sa Dashboard`));
+  console.log(chalk.green(`\n🚀 SAIZEN BOT — LIVE STATUS ACTIVE 📡`));
+  if (botData.session && botData.adminId) {
+    connectBot();
+  } else {
+    console.log(chalk.yellow(`⚠️ Ilagay Admin ID + BUONG Session sa Dashboard`));
+  }
 });
