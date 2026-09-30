@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'bot_data.json');
 
 // ============================================================
-// 💾 DATA — BAGONG RESIBO FORMAT
+// 💾 DATA — LAHAT NG SETTINGS
 // ============================================================
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) {
@@ -30,9 +30,8 @@ function loadData() {
       countStartNum: "1",
       countFrom: 1,
       countTo: 50,
-      countDelay: 1200,
+      countDelay: 3000,
       receiptTitle: "SAIZEN OWNS YOU",
-      // 💀 RANDOM REASONS — AASAR SA RESIBO
       reasonList: [
         "Akala mo makakatakas ka sakin? Wala kang takas!",
         "Duwag pala nagtatago pa, lumabas ka dyan!",
@@ -43,12 +42,7 @@ function loadData() {
         "Hindi ka makakaalis dito, akin ka lang!",
         "Wag ka nang magtago, nakikita kita!",
         "Akin ka lang, walang makakakuha sayo!",
-        "Talo ka na, sumuko ka na lang!",
-        "Andito lang ako hinihintay ka, hindi aalis!",
-        "Wala kang pupuntahan, dito ka lang sakin!",
-        "Alam kong babalik ka, kaya hihintayin kita!",
-        "Ikaw lang gusto ko, wala nang iba!",
-        "Hindi bibitaw hanggat di ka sumasagot!"
+        "Talo ka na, sumuko ka na lang!"
       ]
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(defaultData, null, 2));
@@ -98,11 +92,11 @@ function getTime() {
 function formatDuration(ms) {
   const sec = Math.floor(ms / 1000);
   if (sec < 60) return `${sec}s`;
-  return `${Math.floor(sec/60)}mins`;
+  return `${Math.floor(sec / 60)}mins`;
 }
 
 // ============================================================
-// 🔒 LOCK — NO SPAM
+// 🔒 NO SPAM — SEND ONE AT A TIME
 // ============================================================
 function sendOneMessage(text, threadID) {
   return new Promise((resolve) => {
@@ -142,7 +136,7 @@ async function onTargetReply(msgBody) {
   setTimeout(() => { if (lockedTarget) waitThenNext(); }, randomDelay());
 }
 
-function stopLockFn(threadID=null) {
+function stopLockFn(threadID = null) {
   lockedTarget = null;
   isSending = false;
   if (threadID) isCounting[threadID] = false;
@@ -150,7 +144,7 @@ function stopLockFn(threadID=null) {
 }
 
 // ============================================================
-// 🔢 BILANG 1-50 + BAGONG RESIBO ✅
+// 🔢 BILANG 1-50 + RESIBO
 // ============================================================
 async function startCounting(threadID) {
   if (isCounting[threadID]) {
@@ -165,7 +159,6 @@ async function startCounting(threadID) {
   const countStart = Date.now();
   console.log(chalk.cyan(`🔢 BILANG ${botData.countFrom}-${botData.countTo} — GC: ${threadID}`));
   
-  // Magbilang isa-isa
   for (let i = botData.countFrom; i <= botData.countTo; i++) {
     if (!isCounting[threadID]) {
       console.log(chalk.yellow(`🛑 BILANG TINIGIL SA ${i}`));
@@ -176,7 +169,6 @@ async function startCounting(threadID) {
     process.stdout.write(`\r🔢 ${i}/${botData.countTo}`);
   }
   
-  // TAPOS NA — BAGONG RESIBO FORMAT ✅
   if (isCounting[threadID]) {
     const duration = formatDuration(Date.now() - countStart);
     const randomReason = rand(botData.reasonList);
@@ -204,35 +196,37 @@ async function startCounting(threadID) {
 }
 
 // ============================================================
-// 🚀 CONNECT BOT
+// 🚀 MABILIS NA LOGIN — PINABILIS KO NA! ⚡
 // ============================================================
 function connectBot() {
   if (!botData.session || !botData.adminId) return;
   if (isLoggingIn) return;
   isLoggingIn = true;
 
+  // ⚡ KONTI LANG — MABILIS MAG-LOAD
   const agents = [
-    "Mozilla/5.0 (Linux; Android 14; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 14; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
   ];
 
   login({
     appState: JSON.parse(botData.session),
     userAgent: rand(agents),
     forceLogin: false,
-    logLevel: "silent"
+    logLevel: "silent",
+    timeout: 15000 // ⚡ 15s timeout — hindi maghihintay ng matagal
   }, async (err, apiObj) => {
     if (err) {
       reconnectCount++;
-      console.log(chalk.red(`🔴 Login failed (${reconnectCount}x)`));
+      console.log(chalk.red(`🔴 Login failed — Subok ulit...`));
+      
       if (isFatalErr(err)) {
         isLoggingIn = false;
-        setTimeout(connectBot, 45000);
+        setTimeout(connectBot, 15000); // ⚡ 15s lang
         return;
       }
+      
       isLoggingIn = false;
-      setTimeout(connectBot, 10000 + reconnectCount * 5000);
+      setTimeout(connectBot, 3000); // ⚡ 3s lang — mabilis na subok ulit!
       return;
     }
 
@@ -242,18 +236,21 @@ function connectBot() {
     isLoggingIn = false;
     botStatus.online = true;
     startTime = Date.now();
-    console.log(chalk.green(`✅ ONLINE — BAGONG RESIBO READY! ID: ${userID} 🩸`));
+    console.log(chalk.green(`✅ ONLINE — MABILIS NA LOGIN! ID: ${userID} 🩸`));
 
     api.setOptions({
-      listenEvents: true, selfListen: false, online: true,
-      autoMarkRead: false, autoMarkDelivery: false
+      listenEvents: true,
+      selfListen: false,
+      online: true,
+      autoMarkRead: false,
+      autoMarkDelivery: false
     });
 
     api.listenMqtt((listenErr, event) => {
       if (listenErr) {
         botStatus.online = false;
         console.log(chalk.red("🔴 Reconnecting..."));
-        setTimeout(connectBot, 10000);
+        setTimeout(connectBot, 3000); // ⚡ 3s lang
         return;
       }
       if (!event || event.senderID === userID) return;
@@ -314,7 +311,7 @@ function connectBot() {
 }
 
 // ============================================================
-// 🖥️ DASHBOARD — BAGONG RESIBO SETTINGS ✅
+// 🖥️ DASHBOARD
 // ============================================================
 const app = express();
 app.use(cors());
@@ -327,7 +324,7 @@ app.get('/api/status', (req, res) => {
     adminId: botData.adminId,
     hasSession: !!botData.session,
     lockedTarget: lockedTarget?.targetID || null,
-    counting: Object.entries(isCounting).filter(([,v])=>v).map(([k])=>k)
+    counting: Object.entries(isCounting).filter(([, v]) => v).map(([k]) => k)
   });
 });
 
@@ -363,7 +360,7 @@ app.post('/api/settings', (req, res) => {
   if (d.receiptTitle) botData.receiptTitle = d.receiptTitle;
   if (d.reasonList) botData.reasonList = d.reasonList;
   saveData(botData);
-  res.json({ success: true, message: "✅ Saved — Bagong Resibo Format!" });
+  res.json({ success: true, message: "✅ Saved — Mabilis na Login!" });
 });
 
 app.post('/api/session', (req, res) => {
@@ -383,7 +380,7 @@ app.post('/api/restart', (req, res) => {
   isCounting = {};
   activeThreads.clear();
   setTimeout(connectBot, 1500);
-  res.json({ success: true, message: "🔄 Restarting" });
+  res.json({ success: true, message: "🔄 Restarting — Mabilis na!" });
 });
 
 app.get('/', (req, res) => {
@@ -391,7 +388,7 @@ app.get('/', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>SAIZEN — BAGONG RESIBO ✅</title>
+  <title>SAIZEN — Mabilis na Login ✅</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
@@ -415,8 +412,8 @@ app.get('/', (req, res) => {
   </style>
 </head>
 <body>
-  <h1>✅ BAGONG RESIBO FORMAT — SAIZEN OWNS YOU</h1>
-  <p style="color:#888;margin:10px 0 20px">I-type <strong>1</strong> → bilang 1-50 → resibo may random pang-aasar!</p>
+  <h1>✅ MABILIS NA LOGIN — SAIZEN BOT</h1>
+  <p style="color:#888;margin:10px 0 20px">I-type <strong>1</strong> → bilang 1-50 → resibo — mabilis na mag-o-online!</p>
 
   <div class="stat">
     <strong>STATUS: </strong><span id="status">Checking...</span>
@@ -446,7 +443,7 @@ app.get('/', (req, res) => {
 ═══════════════════════
    MULA: <span id="prevFrom">1</span>
    HANGGANG: <span id="prevTo">50</span>
-   BILANG: <span id="prevDur">1mins</span>
+   BILANG: <span id="prevDur">3s bawat isa</span>
    REASON: <span id="prevReason">...</span>
    ORAS: <span id="prevTime">...</span>
 ═══════════════════════
@@ -456,53 +453,48 @@ app.get('/', (req, res) => {
     
     <label>Trigger Command</label>
     <input id="countStartNum" value="1">
-    <label>Resibo Title (nasa loob ng [ ])</label>
+    <label>Resibo Title</label>
     <input id="receiptTitle" value="SAIZEN OWNS YOU">
     <div class="grid">
       <div><label>Mula sa</label><input type="number" id="countFrom" value="1"></div>
       <div><label>Hanggang sa</label><input type="number" id="countTo" value="50"></div>
     </div>
-    <label>Delay bawat bilang (ms)</label>
-    <input type="number" id="countDelay" value="1200">
-    <label>Random Reasons (isa bawat linya — pang-aasar na Tagalog)</label>
-    <textarea id="reasonList" rows="6">Akala mo makakatakas ka sakin? Wala kang takas!
+    <label>Delay bawat bilang (ms) — 3000 = 3 segundo</label>
+    <input type="number" id="countDelay" value="3000">
+    <label>Random Reasons</label>
+    <textarea id="reasonList" rows="5">Akala mo makakatakas ka sakin? Wala kang takas!
 Duwag pala nagtatago pa, lumabas ka dyan!
 Hindi ka makakatakas, hawak kita dito!
 Sa dulo tayo pa rin, wag ka nang lumaban!
-Wala kang laban sakin, tanggapin mo na!
-Akala ko kung sino, duwag lang pala!
-Hindi ka makakaalis dito, akin ka lang!
-Wag ka nang magtago, nakikita kita!
-Akin ka lang, walang makakakuha sayo!
-Talo ka na, sumuko ka na lang!</textarea>
-    <button onclick="saveCountSettings()">💾 SAVE RESIBO SETTINGS</button>
+Wala kang laban sakin, tanggapin mo na!</textarea>
+    <button onclick="saveCountSettings()">💾 SAVE RESIBO</button>
   </div>
 
   <div class="card">
-    <h3>💀 Troll / Auto-Reply</h3>
+    <h3>💀 TROLL REPLIES</h3>
     <label>Hamol Messages</label>
-    <textarea id="hamolInput" rows="3"></textarea>
+    <textarea id="hamolInput" rows="4"></textarea>
     <label>Reply Messages</label>
-    <textarea id="trollInput" rows="3"></textarea>
+    <textarea id="trollInput" rows="4"></textarea>
     <label>Suffixes</label>
-    <textarea id="suffixInput" rows="2"></textarea>
+    <textarea id="suffixInput" rows="3"></textarea>
     <div class="grid">
-      <div><label>Min Delay (ms)</label><input type="number" id="dMin"></div>
-      <div><label>Max Delay (ms)</label><input type="number" id="dMax"></div>
+      <div><label>Min Delay (ms)</label><input type="number" id="dMin" value="5000"></div>
+      <div><label>Max Delay (ms)</label><input type="number" id="dMax" value="9000"></div>
     </div>
     <button onclick="saveTrollSettings()">💾 SAVE TROLL</button>
   </div>
 
   <div class="card">
-    <h3>📝 COMMANDS — I-TYPE SA GC</h3>
+    <h3>📝 COMMANDS SA GC</h3>
     <div class="cmd">1</div>
-    <p>→ 🔢 Bilang 1-50 → Resibo — may random pang-aasar!</p>
+    <p>→ 🔢 Bilang 1-50 → Resibo</p>
     <div class="cmd">.</div>
     <p>→ ✅ Auto-Reply ON</p>
     <div class="cmd">.. @ID</div>
-    <p>→ 🔒 LOCK — habol sa tao</p>
+    <p>→ 🔒 LOCK Target</p>
     <div class="cmd">.stop</div>
-    <p>→ 🛑 Tigil lahat</p>
+    <p>→ 🛑 Tigil Lahat</p>
     <button class="sec" onclick="restart()">🔄 RESTART BOT</button>
   </div>
 
@@ -510,7 +502,7 @@ Talo ka na, sumuko ka na lang!</textarea>
 async function load(){
   const [s,se] = await Promise.all([fetch('/api/status'),fetch('/api/settings')]);
   const st=await s.json(),se=await se.json();
-  document.getElementById('status').innerHTML=st.online?'<span class="on">✅ ONLINE</span>':'<span class="off">❌ OFFLINE</span>';
+  document.getElementById('status').innerHTML=st.online?'<span class="on">✅ ONLINE — Mabilis na!</span>':'<span class="off">❌ OFFLINE</span>';
   document.getElementById('uptime').textContent=st.uptime||'-';
   document.getElementById('counting').textContent=st.counting.length?st.counting.join(', '):'Wala';
   
@@ -527,12 +519,11 @@ async function load(){
   document.getElementById('dMin').value=se.delayMin;
   document.getElementById('dMax').value=se.delayMax;
   
-  // Update preview
   document.getElementById('prevTitle').textContent=se.receiptTitle;
   document.getElementById('prevFrom').textContent=se.countFrom;
   document.getElementById('prevTo').textContent=se.countTo;
-  const reasons=se.reasonList;
-  document.getElementById('prevReason').textContent=reasons[Math.floor(Math.random()*reasons.length)];
+  const rList=se.reasonList;
+  document.getElementById('prevReason').textContent=rList[Math.floor(Math.random()*rList.length)];
 }
 async function saveSession(){
   const r=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session:document.getElementById('sessionInput').value})});
@@ -550,7 +541,7 @@ async function saveCountSettings(){
     countTo:parseInt(document.getElementById('countTo').value),
     countDelay:parseInt(document.getElementById('countDelay').value),
     reasonList:reasons
-  })});load();alert('✅ Resibo Settings Saved!');
+  })});load();alert('✅ Saved!');
 }
 async function saveTrollSettings(){
   await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
@@ -562,7 +553,7 @@ async function saveTrollSettings(){
   })});load();
 }
 async function restart(){await fetch('/api/restart',{method:'POST'});setTimeout(load,2000);}
-load();setInterval(load,5000);
+load();setInterval(load,2000); // ⚡ Mabilis na refresh
 </script>
 </body>
 </html>
@@ -570,7 +561,7 @@ load();setInterval(load,5000);
 });
 
 app.listen(PORT, () => {
-  console.log(chalk.green(`\n🚀 DASHBOARD — BAGONG RESIBO ✅`));
-  console.log(chalk.cyan(`I-type "1" → bilang → resibo may random pang-aasar!\n`));
+  console.log(chalk.green(`\n🚀 DASHBOARD — MABILIS NA LOGIN ✅`));
+  console.log(chalk.cyan(`I-type "1" → bilang → resibo — mabilis na mag-o-online!\n`));
   if (botData.session && botData.adminId) connectBot();
 });
